@@ -143,7 +143,7 @@ func (r *Reader) Skip(n int) (int, error) {
 	return skipped, r.state
 }
 
-// Read implements io.Reader
+// Read implements `io.Reader`
 func (r *Reader) Read(b []byte) (int, error) {
 	if len(b) <= r.buffered() {
 		x := copy(b, r.data[r.n:])
@@ -186,7 +186,7 @@ func (r *Reader) ReadFull(b []byte) (int, error) {
 	return x, nil
 }
 
-// ReadByte implements io.ByteReader
+// ReadByte implements `io.ByteReader`
 func (r *Reader) ReadByte() (byte, error) {
 	if r.buffered() < 1 && r.state == nil {
 		r.more()
@@ -201,7 +201,7 @@ func (r *Reader) ReadByte() (byte, error) {
 	return b, nil
 }
 
-// WriteTo imlements io.WriterTo
+// WriteTo imlements `io.WriterTo`
 func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 	var (
 		i   int64
