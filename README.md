@@ -1,6 +1,6 @@
 
 # fwd
-    import "."
+    import "github.com/philhofer/fwd"
 
 The `fwd` package provides
 a buffered reader that can
