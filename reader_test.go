@@ -11,7 +11,7 @@ import (
 
 // partialReader reads into only
 // part of the supplied byte slice
-//
+// to the underlying reader
 type partialReader struct {
 	r io.Reader
 }
@@ -101,6 +101,14 @@ func TestSkip(t *testing.T) {
 		t.Fatalf("at index %d: %d in; %d out", 512, bts[512], b)
 	}
 
+	n, err = rd.Skip(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 10 {
+		t.Fatalf("Skip() returned a nil error, but skipped %d bytes instead of %d", n, 10)
+	}
+
 	// now try to skip past the end
 	rd = NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
 
@@ -144,11 +152,25 @@ func TestPeek(t *testing.T) {
 	if !bytes.Equal(peek, bts[:256]) {
 		t.Fatal("peeked bytes not equal")
 	}
+
+	// now try to peek past EOF
+	peek, err = rd.Peek(2048)
+	if err != io.EOF {
+		t.Fatalf("expected error %q; got %q", io.EOF, err)
+	}
+	if len(peek) != 1024 {
+		t.Fatalf("expected %d bytes peek-able; got %d", 1024, len(peek))
+	}
 }
 
 func TestWriteTo(t *testing.T) {
 	bts := randomBts(2048)
-	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 128)
+	rd := NewReader(partialReader{bytes.NewReader(bts)})
+
+	// cause the buffer
+	// to fill a little, just
+	// to complicate things
+	rd.Peek(25)
 
 	var out bytes.Buffer
 	n, err := rd.WriteTo(&out)

@@ -1,7 +1,10 @@
+// The `fwd` package provides
+// a buffered reader that can
+// seek forward an arbitrary
+// number of bytes.
 package fwd
 
 import (
-	"fmt"
 	"io"
 )
 
@@ -9,47 +12,39 @@ const (
 	// DefaultReaderSize is the default size of the read buffer
 	DefaultReaderSize = 2048
 
-	// minimum reader buffer
+	// minimum read buffer; straight from bufio
 	minReaderSize = 16
 )
 
 // NewReader returns a new *Reader that reads from 'r'
 func NewReader(r io.Reader) *Reader {
-	return &Reader{
-		r:    r,
-		data: make([]byte, 0, DefaultReaderSize),
-	}
+	return NewReaderSize(r, DefaultReaderSize)
 }
 
-// NewReaderSize returns a new *Reader taht
+// NewReaderSize returns a new *Reader that
 // reads from 'r' and has a buffer size 'n'
 func NewReaderSize(r io.Reader, n int) *Reader {
-	if n < minReaderSize {
-		n = minReaderSize
-	}
 	return &Reader{
 		r:    r,
-		data: make([]byte, 0, n),
+		data: make([]byte, 0, max(minReaderSize, n)),
 	}
 }
 
-// Reader is a buffered look-ahead reader
+// Reader is a buffered look-ahead reader.
 type Reader struct {
-	// data[n:len(data)] is buffered data; data[len(data):cap(data)] is free buffer space
+	r io.Reader // underlying reader
 
-	r     io.Reader // underlying reader
-	data  []byte    // data
-	n     int       // read offset
-	state error     // last read error
+	// data[n:len(data)] is buffered data; data[len(data):cap(data)] is free buffer space
+	data  []byte // data
+	n     int    // read offset
+	state error  // last read error
 }
 
-// Reset resets the state of the reader,
-// and sets the underlying reader to the
-// one supplied
+// Reset resets the state of the reader and
+// sets the buffer size to 'size'. If size is
+// less than 0, the buffer size remains unchanged.
 func (r *Reader) Reset(rd io.Reader) {
-	if rd != nil {
-		r.r = rd
-	}
+	r.r = rd
 	r.data = r.data[0:0]
 	r.n = 0
 	r.state = nil
@@ -71,12 +66,10 @@ func (r *Reader) more() {
 // buffered bytes
 func (r *Reader) buffered() int { return len(r.data) - r.n }
 
-// buffer space left
-func (r *Reader) available() int { return cap(r.data) - len(r.data) }
-
-// Buffered returns the number of bytes buffered
+// Buffered returns the number of bytes currently in the buffer
 func (r *Reader) Buffered() int { return len(r.data) - r.n }
 
+// BufferSize returns the total size of the buffer
 func (r *Reader) BufferSize() int { return cap(r.data) }
 
 // Peek returns the next 'n' buffered bytes,
@@ -85,18 +78,6 @@ func (r *Reader) BufferSize() int { return cap(r.data) }
 // if it also returns an error. Peek does not advance
 // the reader.
 func (r *Reader) Peek(n int) ([]byte, error) {
-
-	// fast path
-	if r.buffered() >= n {
-		return r.data[r.n : r.n+n], nil
-	}
-
-	// if the underlying
-	// reader has errored
-	if r.state != nil {
-		return r.data[r.n:], r.state
-	}
-
 	// in the degenerate case,
 	// we may need to realloc
 	// (the caller asked for more
@@ -116,7 +97,9 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 
 	// we must have hit an error
 	if r.buffered() < n {
-		return r.data[r.n:], r.state
+		e := r.state
+		r.state = nil
+		return r.data[r.n:], e
 	}
 
 	return r.data[r.n : r.n+n], nil
@@ -137,7 +120,9 @@ func (r *Reader) Skip(n int) (int, error) {
 	if r.state != nil {
 		s := r.buffered()
 		r.n += s
-		return s, r.state
+		e := r.state
+		r.state = nil
+		return s, e
 	}
 
 	// loop on filling
@@ -166,7 +151,12 @@ func (r *Reader) Read(b []byte) (int, error) {
 		r.n += x
 		return x, nil
 	}
-	return 0, r.state
+
+	// io.Reader is supposed to return
+	// 0 read bytes on error
+	e := r.state
+	r.state = nil
+	return 0, e
 }
 
 // ReadByte implements io.ByteReader
@@ -175,7 +165,9 @@ func (r *Reader) ReadByte() (byte, error) {
 		r.more()
 	}
 	if r.buffered() < 1 {
-		return 0, r.state
+		e := r.state
+		r.state = nil
+		return 0, e
 	}
 	b := r.data[r.n]
 	r.n++
@@ -199,8 +191,9 @@ func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 		r.data = r.data[0:0]
 		r.n = 0
 	}
-	// read into the whole buffer; write
 	for r.state == nil {
+		// here we just do
+		// 1:1 reads and writes
 		r.more()
 		if r.buffered() > 0 {
 			ii, err = w.Write(r.data)
@@ -225,6 +218,9 @@ func min(a int, b int) int {
 	return b
 }
 
-func printState(r *Reader) {
-	fmt.Printf("state: %d bytes buffered; read offset %d\n", r.buffered(), r.n)
+func max(a int, b int) int {
+	if a < b {
+		return b
+	}
+	return a
 }
