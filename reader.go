@@ -164,6 +164,28 @@ func (r *Reader) Read(b []byte) (int, error) {
 	return 0, e
 }
 
+// ReadFull attempts to read len(b) bytes into
+// 'b'. It returns the number of bytes read into
+// 'b', and an error if it does not return len(b).
+func (r *Reader) ReadFull(b []byte) (int, error) {
+	var x int
+	l := len(b)
+	for x < l {
+		if r.buffered() == 0 {
+			r.more()
+		}
+		if r.state != nil {
+			e := r.state
+			r.state = nil
+			return x, e
+		}
+		c := copy(b[x:], r.data[r.n:])
+		x += c
+		r.n += c
+	}
+	return x, nil
+}
+
 // ReadByte implements io.ByteReader
 func (r *Reader) ReadByte() (byte, error) {
 	if r.buffered() < 1 && r.state == nil {

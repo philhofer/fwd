@@ -184,3 +184,33 @@ func TestWriteTo(t *testing.T) {
 		t.Fatal("bytes not equal")
 	}
 }
+
+func TestReadFull(t *testing.T) {
+	bts := randomBts(1024)
+	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 256)
+
+	// try to ReadFull() the whole thing
+	out := make([]byte, 1024)
+	n, err := rd.ReadFull(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1024 {
+		t.Fatalf("expected to read %d bytes; read %d", 1024, n)
+	}
+	if !bytes.Equal(bts, out) {
+		t.Fatal("bytes not equal")
+	}
+
+	rd.Reset(partialReader{bytes.NewReader(bts)})
+
+	// now try to read *past* EOF
+	out = make([]byte, 1500)
+	n, err = rd.ReadFull(out)
+	if err != io.EOF {
+		t.Fatalf("expected error %q; got %q", io.EOF, err)
+	}
+	if n != 1024 {
+		t.Fatalf("expected to read %d bytes; read %d", 1024, n)
+	}
+}
