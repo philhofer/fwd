@@ -1,7 +1,13 @@
 // The `fwd` package provides
 // a buffered reader that can
 // seek forward an arbitrary
-// number of bytes.
+// number of bytes. The Peek() and
+// Skip() methods are useful for
+// manipulating the contents of a
+// byte-stream in place, as well
+// as a shim to allow the use of
+// `[]byte`-oriented methods
+// with io.Readers.
 package fwd
 
 import (
@@ -30,7 +36,7 @@ func NewReaderSize(r io.Reader, n int) *Reader {
 	}
 }
 
-// Reader is a buffered look-ahead reader.
+// Reader is a buffered look-ahead reader
 type Reader struct {
 	r io.Reader // underlying reader
 
@@ -40,9 +46,8 @@ type Reader struct {
 	state error  // last read error
 }
 
-// Reset resets the state of the reader and
-// sets the buffer size to 'size'. If size is
-// less than 0, the buffer size remains unchanged.
+// Reset resets the underlying reader
+// and the read buffer.
 func (r *Reader) Reset(rd io.Reader) {
 	r.r = rd
 	r.data = r.data[0:0]
