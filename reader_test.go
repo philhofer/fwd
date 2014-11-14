@@ -35,7 +35,7 @@ func TestRead(t *testing.T) {
 	// make the buffer much
 	// smaller than the underlying
 	// bytes to incur multiple fills
-	rd := NewReaderSize(bytes.NewReader(bts), 128)
+	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 128)
 
 	if rd.BufferSize() != cap(rd.data) {
 		t.Errorf("BufferSize() returned %d; should return %d", rd.BufferSize(), cap(rd.data))
@@ -46,12 +46,35 @@ func TestRead(t *testing.T) {
 		t.Errorf("Buffered() should return 0 at initialization; got %d", rd.Buffered())
 	}
 
+	some := make([]byte, 32)
+	n, err := rd.Read(some)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n == 0 {
+		t.Fatal("read 0 bytes w/ a non-nil error!")
+	}
+	some = some[:n]
+
+	more := make([]byte, 64)
+	j, err := rd.Read(more)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j == 0 {
+		t.Fatal("read 0 bytes w/ a non-nil error")
+	}
+	more = more[:j]
+
 	out, err := ioutil.ReadAll(rd)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !bytes.Equal(bts, out) {
+	all := append(some, more...)
+	all = append(all, out...)
+
+	if !bytes.Equal(bts, all) {
 		t.Errorf("bytes not equal; %d bytes in and %d bytes out", len(bts), len(out))
 	}
 }
@@ -113,7 +136,7 @@ func TestSkip(t *testing.T) {
 	rd = NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
 
 	n, err = rd.Skip(2000)
-	if err != io.EOF {
+	if err != io.ErrUnexpectedEOF {
 		t.Fatalf("expected error %q; got %q", io.EOF, err)
 	}
 	if n != 1024 {
@@ -207,7 +230,7 @@ func TestReadFull(t *testing.T) {
 	// now try to read *past* EOF
 	out = make([]byte, 1500)
 	n, err = rd.ReadFull(out)
-	if err != io.EOF {
+	if err != io.ErrUnexpectedEOF {
 		t.Fatalf("expected error %q; got %q", io.EOF, err)
 	}
 	if n != 1024 {

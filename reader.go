@@ -1,13 +1,12 @@
-// The `fwd` package provides
-// a buffered reader that can
-// seek forward an arbitrary
-// number of bytes. The Peek() and
-// Skip() methods are useful for
-// manipulating the contents of a
-// byte-stream in place, as well
-// as a shim to allow the use of
-// `[]byte`-oriented methods
-// with io.Readers.
+// The `fwd` package provides a buffered reader that can
+// seek forward an arbitrary number of bytes. The Peek() and
+// Skip() methods are useful for manipulating the contents of a
+// byte-stream in place, as well as a shim to allow the use of
+// `[]byte`-oriented methods with io.Readers.
+//
+// (This package was
+// originally written to improve decoding speed in
+// github.com/philhofer/msgp/msgp.)
 package fwd
 
 import (
@@ -58,7 +57,9 @@ func (r *Reader) Reset(rd io.Reader) {
 // more() does one read on the underlying reader
 func (r *Reader) more() {
 	// move data backwards so that
-	// the read offset is 0
+	// the read offset is 0; this way
+	// we can supply the maximum number of
+	// bytes to the reader
 	if r.n != 0 {
 		r.data = r.data[:copy(r.data[0:], r.data[r.n:])]
 		r.n = 0
@@ -66,6 +67,21 @@ func (r *Reader) more() {
 	var a int
 	a, r.state = r.r.Read(r.data[len(r.data):cap(r.data)])
 	r.data = r.data[:len(r.data)+a]
+}
+
+// pop error
+func (r *Reader) err() (e error) {
+	e, r.state = r.state, nil
+	return
+}
+
+// pop error; EOF -> io.ErrUnexpectedEOF
+func (r *Reader) noEOF() (e error) {
+	e, r.state = r.state, nil
+	if e == io.EOF {
+		e = io.ErrUnexpectedEOF
+	}
+	return
 }
 
 // buffered bytes
@@ -81,7 +97,8 @@ func (r *Reader) BufferSize() int { return cap(r.data) }
 // reading from the underlying reader if necessary.
 // It will only return a slice shorter than 'n' bytes
 // if it also returns an error. Peek does not advance
-// the reader.
+// the reader. EOF errors are *not* returned as
+// io.ErrUnexpectedEOF.
 func (r *Reader) Peek(n int) ([]byte, error) {
 	// in the degenerate case,
 	// we may need to realloc
@@ -102,9 +119,7 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 
 	// we must have hit an error
 	if r.buffered() < n {
-		e := r.state
-		r.state = nil
-		return r.data[r.n:], e
+		return r.data[r.n:], r.err()
 	}
 
 	return r.data[r.n : r.n+n], nil
@@ -112,22 +127,15 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 
 // Forward moves the reader forward 'n' bytes.
 // Returns the number of bytes skipped and any
-// errors encountered
+// errors encountered. If the reader encounters
+// an EOF before skipping 'n' bytes, it
+// returns io.ErrUnexpectedEOF
 func (r *Reader) Skip(n int) (int, error) {
 
 	// fast path
 	if r.buffered() >= n {
 		r.n += n
 		return n, nil
-	}
-
-	// EOF or other error
-	if r.state != nil {
-		s := r.buffered()
-		r.n += s
-		e := r.state
-		r.state = nil
-		return s, e
 	}
 
 	// loop on filling
@@ -140,7 +148,7 @@ func (r *Reader) Skip(n int) (int, error) {
 		r.n += step
 		n -= step
 	}
-	return skipped, r.state
+	return skipped, r.noEOF()
 }
 
 // Read implements `io.Reader`
@@ -159,9 +167,7 @@ func (r *Reader) Read(b []byte) (int, error) {
 
 	// io.Reader is supposed to return
 	// 0 read bytes on error
-	e := r.state
-	r.state = nil
-	return 0, e
+	return 0, r.err()
 }
 
 // ReadFull attempts to read len(b) bytes into
@@ -175,9 +181,7 @@ func (r *Reader) ReadFull(b []byte) (int, error) {
 			r.more()
 		}
 		if r.state != nil {
-			e := r.state
-			r.state = nil
-			return x, e
+			return x, r.noEOF()
 		}
 		c := copy(b[x:], r.data[r.n:])
 		x += c
@@ -192,16 +196,17 @@ func (r *Reader) ReadByte() (byte, error) {
 		r.more()
 	}
 	if r.buffered() < 1 {
-		e := r.state
-		r.state = nil
-		return 0, e
+		if r.state == nil {
+			return 0, io.ErrNoProgress
+		}
+		return 0, r.err()
 	}
 	b := r.data[r.n]
 	r.n++
 	return b, nil
 }
 
-// WriteTo imlements `io.WriterTo`
+// WriteTo implements `io.WriterTo`
 func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 	var (
 		i   int64
@@ -233,7 +238,7 @@ func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 		}
 	}
 	if r.state != io.EOF {
-		return i, err
+		return i, r.err()
 	}
 	return i, nil
 }

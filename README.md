@@ -2,16 +2,15 @@
 # fwd
     import "github.com/philhofer/fwd"
 
-The `fwd` package provides
-a buffered reader that can
-seek forward an arbitrary
-number of bytes. The Peek() and
-Skip() methods are useful for
-manipulating the contents of a
-byte-stream in place, as well
-as a shim to allow the use of
-`[]byte`-oriented methods
-with io.Readers.
+The `fwd` package provides a buffered reader that can
+seek forward an arbitrary number of bytes. The Peek() and
+Skip() methods are useful for manipulating the contents of a
+byte-stream in place, as well as a shim to allow the use of
+`[]byte`-oriented methods with io.Readers.
+
+(This package was
+originally written to improve decoding speed in
+github.com/philhofer/msgp/msgp.)
 
 
 
@@ -83,7 +82,8 @@ Peek returns the next 'n' buffered bytes,
 reading from the underlying reader if necessary.
 It will only return a slice shorter than 'n' bytes
 if it also returns an error. Peek does not advance
-the reader.
+the reader. EOF errors are *not* returned as
+io.ErrUnexpectedEOF.
 
 
 
@@ -128,7 +128,9 @@ func (r *Reader) Skip(n int) (int, error)
 ```
 Forward moves the reader forward 'n' bytes.
 Returns the number of bytes skipped and any
-errors encountered
+errors encountered. If the reader encounters
+an EOF before skipping 'n' bytes, it
+returns io.ErrUnexpectedEOF
 
 
 
@@ -136,7 +138,7 @@ errors encountered
 ``` go
 func (r *Reader) WriteTo(w io.Writer) (int64, error)
 ```
-WriteTo imlements `io.WriterTo`
+WriteTo implements `io.WriterTo`
 
 
 
