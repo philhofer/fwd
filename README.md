@@ -6,7 +6,9 @@ The `fwd` package provides a buffered reader that can
 seek forward an arbitrary number of bytes. The Peek() and
 Skip() methods are useful for manipulating the contents of a
 byte-stream in place, as well as a shim to allow the use of
-`[]byte`-oriented methods with io.Readers.
+`[]byte`-oriented methods with io.Readers. Additionally,
+if the underlying reader implements io.Seeker, then
+Skip() uses that to skip forward as well.
 
 (This package was
 originally written to improve decoding speed in
@@ -128,9 +130,13 @@ func (r *Reader) Skip(n int) (int, error)
 ```
 Forward moves the reader forward 'n' bytes.
 Returns the number of bytes skipped and any
-errors encountered. If the reader encounters
+errors encountered. It is analagous to Seek(n, 1).
+If the underlying reader implements io.Seeker, then
+that method will be used to skip forward.
+
+If the reader encounters
 an EOF before skipping 'n' bytes, it
-returns io.ErrUnexpectedEOF
+returns io.ErrUnexpectedEOF.
 
 
 

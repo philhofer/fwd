@@ -17,7 +17,8 @@ type partialReader struct {
 }
 
 func (p partialReader) Read(b []byte) (int, error) {
-	return p.r.Read(b[:rand.Intn(len(b))])
+	n := max(1, rand.Intn(len(b)))
+	return p.r.Read(b[:n])
 }
 
 func randomBts(sz int) []byte {
@@ -88,6 +89,9 @@ func TestReadByte(t *testing.T) {
 		i   int
 		b   byte
 	)
+
+	// scan through the whole
+	// array byte-by-byte
 	for err != io.EOF {
 		b, err = rd.ReadByte()
 		if err == nil {
@@ -102,7 +106,7 @@ func TestReadByte(t *testing.T) {
 	}
 }
 
-func TestSkip(t *testing.T) {
+func TestSkipNoSeek(t *testing.T) {
 	bts := randomBts(1024)
 	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
 
@@ -142,6 +146,64 @@ func TestSkip(t *testing.T) {
 	if n != 1024 {
 		t.Fatalf("expected to skip only 1024 bytes; skipped %d", n)
 	}
+}
+
+func TestSkipSeek(t *testing.T) {
+	bts := randomBts(1024)
+
+	// bytes.Reader implements io.Seeker
+	rd := NewReaderSize(bytes.NewReader(bts), 200)
+
+	n, err := rd.Skip(512)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 512 {
+		t.Fatalf("Skip() returned a nil error, but skipped %d bytes instead of %d", n, 512)
+	}
+
+	var b byte
+	b, err = rd.ReadByte()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if b != bts[512] {
+		t.Fatalf("at index %d: %d in; %d out", 512, bts[512], b)
+	}
+
+	n, err = rd.Skip(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 10 {
+		t.Fatalf("Skip() returned a nil error, but skipped %d bytes instead of %d", n, 10)
+	}
+
+	// now try to skip past the end
+	rd.Reset(bytes.NewReader(bts))
+
+	// because of how bytes.Reader
+	// implements Seek, this should
+	// return (2000, nil)
+	n, err = rd.Skip(2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2000 {
+		t.Fatalf("should have returned %d bytes; returned %d", 2000, n)
+	}
+
+	// the next call to Read()
+	// should return io.EOF
+	n, err = rd.Read([]byte{0, 0, 0})
+	if err != io.EOF {
+		t.Errorf("expected %q; got %q", io.EOF, err)
+	}
+	if n != 0 {
+		t.Errorf("expected 0 bytes read; got %d", n)
+	}
+
 }
 
 func TestPeek(t *testing.T) {
@@ -186,9 +248,29 @@ func TestPeek(t *testing.T) {
 	}
 }
 
+func TestNext(t *testing.T) {
+	size := 1024
+	bts := randomBts(size)
+	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
+
+	chunksize := 256
+	chunks := size / chunksize
+
+	for i := 0; i < chunks; i++ {
+		out, err := rd.Next(chunksize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		start := chunksize * i
+		if !bytes.Equal(bts[start:start+chunksize], out) {
+			t.Fatalf("chunk %d: chunks not equal", i+1)
+		}
+	}
+}
+
 func TestWriteTo(t *testing.T) {
 	bts := randomBts(2048)
-	rd := NewReader(partialReader{bytes.NewReader(bts)})
+	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
 
 	// cause the buffer
 	// to fill a little, just
