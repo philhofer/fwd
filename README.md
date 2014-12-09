@@ -76,6 +76,21 @@ Buffered returns the number of bytes currently in the buffer
 
 
 
+### func (\*Reader) Next
+``` go
+func (r *Reader) Next(n int) ([]byte, error)
+```
+Next returns the next 'n' bytes in the stream.
+If the returned slice has a length less than 'n',
+an error will also be returned.
+Unlike Peek, Next advances the reader position.
+The returned bytes point to the same
+data as the buffer, so the slice is
+only valid until the next reader method call.
+An EOF is considered an unexpected error.
+
+
+
 ### func (\*Reader) Peek
 ``` go
 func (r *Reader) Peek(n int) ([]byte, error)
@@ -128,7 +143,7 @@ and the read buffer.
 ``` go
 func (r *Reader) Skip(n int) (int, error)
 ```
-Forward moves the reader forward 'n' bytes.
+Skip moves the reader forward 'n' bytes.
 Returns the number of bytes skipped and any
 errors encountered. It is analagous to Seek(n, 1).
 If the underlying reader implements io.Seeker, then
@@ -136,7 +151,11 @@ that method will be used to skip forward.
 
 If the reader encounters
 an EOF before skipping 'n' bytes, it
-returns io.ErrUnexpectedEOF.
+returns io.ErrUnexpectedEOF. If the
+underlying reader implements io.Seeker, then
+those rules apply instead. (Many implementations
+will not return io.EOF until the next call
+to Read.)
 
 
 
