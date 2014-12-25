@@ -2,6 +2,8 @@ package fwd
 
 import (
 	"io"
+	"reflect"
+	"unsafe"
 )
 
 const (
@@ -54,7 +56,7 @@ func (w *Writer) Flush() error {
 		// bytes to the beginnning of the
 		// buffer.
 		if n < l {
-			w.buf = w.buf[:copy(w.buf[0:], w.buf[n:])]
+			w.pushback(n)
 			if err == nil {
 				err = io.ErrShortWrite
 			}
@@ -87,6 +89,16 @@ func (w *Writer) Write(p []byte) (int, error) {
 	// grow buf slice; copy; return
 	w.buf = w.buf[0 : l+ln]
 	return copy(w.buf[l:], p), nil
+}
+
+// WriteString implements io.StringWriter
+func (w *Writer) WriteString(s string) (int, error) {
+	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
+	return w.Write(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Len:  sh.Len,
+		Cap:  sh.Len,
+		Data: sh.Data,
+	})))
 }
 
 // WriteByte implements `io.ByteWriter`
