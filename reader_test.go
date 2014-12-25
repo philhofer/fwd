@@ -96,7 +96,7 @@ func TestReadByte(t *testing.T) {
 		b, err = rd.ReadByte()
 		if err == nil {
 			if b != bts[i] {
-				t.Fatalf("offset %d: %d in; %d out", b, bts[i])
+				t.Fatalf("offset %d: %d in; %d out", i, b, bts[i])
 			}
 		}
 		i++
