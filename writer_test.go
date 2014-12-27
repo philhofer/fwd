@@ -29,6 +29,7 @@ func (c chunkedWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// analagous to Write(), but w/ str
 func (c chunkedWriter) WriteString(s string) (int, error) {
 	l := len(s)
 	n := 0
@@ -82,6 +83,11 @@ func TestWrite(t *testing.T) {
 	bts := randomBts(nbts)
 	var buf bytes.Buffer
 	wr := NewWriterSize(&buf, 512)
+
+	if wr.BufferSize() != 512 {
+		t.Fatalf("expected BufferSize() to be %d; found %d", 512, wr.BufferSize())
+	}
+
 	cwr := chunkedWriter{wr}
 	nb, err := cwr.Write(bts)
 	if err != nil {
@@ -112,6 +118,11 @@ func TestWriteString(t *testing.T) {
 	str := string(randomBts(nbts))
 	var buf bytes.Buffer
 	wr := NewWriterSize(&buf, 1137)
+
+	if wr.BufferSize() != 1137 {
+		t.Fatalf("expected BufferSize() to return %d; returned %d", 1137, wr.BufferSize())
+	}
+
 	cwr := chunkedWriter{wr}
 	nb, err := cwr.WriteString(str)
 	if err != nil {
@@ -143,6 +154,10 @@ func TestWriteByte(t *testing.T) {
 	bts := randomBts(nbts)
 	var buf bytes.Buffer
 	wr := NewWriter(&buf)
+
+	if wr.BufferSize() != DefaultWriterSize {
+		t.Fatalf("expected BufferSize() to return %d; returned %d", DefaultWriterSize, wr.BufferSize())
+	}
 
 	// write byte-by-byte
 	for _, b := range bts {

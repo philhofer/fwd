@@ -1,14 +1,8 @@
-// The `fwd` package provides a buffered reader that can
-// seek forward an arbitrary number of bytes. The Peek() and
-// Skip() methods are useful for manipulating the contents of a
-// byte-stream in place, as well as a shim to allow the use of
-// `[]byte`-oriented methods with io.Readers. Additionally,
-// if the underlying reader implements io.Seeker, then
-// Skip() uses that to skip forward as well.
+// The `fwd` package provides a buffered reader
+// and writer. Each has methods that help improve
+// the encoding/decoding performance of some binary
+// protocols.
 //
-// (This package was
-// originally written to improve decoding speed in
-// github.com/philhofer/msgp/msgp.)
 package fwd
 
 import (
@@ -62,9 +56,10 @@ func (r *Reader) Reset(rd io.Reader) {
 	r.data = r.data[0:0]
 	r.n = 0
 	r.state = nil
-	r.rs = nil
 	if s, ok := rd.(io.Seeker); ok {
 		r.rs = s
+	} else {
+		r.rs = nil
 	}
 }
 
@@ -154,7 +149,7 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 // returns io.ErrUnexpectedEOF. If the
 // underlying reader implements io.Seeker, then
 // those rules apply instead. (Many implementations
-// will not return io.EOF until the next call
+// will not return `io.EOF` until the next call
 // to Read.)
 func (r *Reader) Skip(n int) (int, error) {
 

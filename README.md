@@ -2,17 +2,10 @@
 # fwd
     import "github.com/philhofer/fwd"
 
-The `fwd` package provides a buffered reader that can
-seek forward an arbitrary number of bytes. The Peek() and
-Skip() methods are useful for manipulating the contents of a
-byte-stream in place, as well as a shim to allow the use of
-`[]byte`-oriented methods with io.Readers. Additionally,
-if the underlying reader implements io.Seeker, then
-Skip() uses that to skip forward as well.
-
-(This package was
-originally written to improve decoding speed in
-github.com/philhofer/msgp/msgp.)
+The `fwd` package provides a buffered reader
+and writer. Each has methods that help improve
+the encoding/decoding performance of length-prefixed
+wire formats.
 
 
 
@@ -22,6 +15,13 @@ github.com/philhofer/msgp/msgp.)
 const (
     // DefaultReaderSize is the default size of the read buffer
     DefaultReaderSize = 2048
+)
+```
+``` go
+const (
+    // DefaultWriterSize is the
+    // default write buffer size.
+    DefaultWriterSize = 2048
 )
 ```
 
@@ -154,7 +154,7 @@ an EOF before skipping 'n' bytes, it
 returns io.ErrUnexpectedEOF. If the
 underlying reader implements io.Seeker, then
 those rules apply instead. (Many implementations
-will not return io.EOF until the next call
+will not return `io.EOF` until the next call
 to Read.)
 
 
@@ -164,6 +164,111 @@ to Read.)
 func (r *Reader) WriteTo(w io.Writer) (int64, error)
 ```
 WriteTo implements `io.WriterTo`
+
+
+
+## type Writer
+``` go
+type Writer struct {
+    // contains filtered or unexported fields
+}
+```
+Writer is a buffered writer
+
+
+
+
+
+
+
+
+
+### func NewWriter
+``` go
+func NewWriter(w io.Writer) *Writer
+```
+NewWriter returns a new writer
+that writes to 'w' and has a buffer
+that is `DefaultWriterSize` bytes.
+
+
+### func NewWriterSize
+``` go
+func NewWriterSize(w io.Writer, size int) *Writer
+```
+NewWriterSize returns a new writer
+that writes to 'w' and has a buffer
+that is 'size' bytes.
+
+
+
+
+### func (\*Writer) BufferSize
+``` go
+func (w *Writer) BufferSize() int
+```
+BufferSize returns the maximum size of the buffer.
+
+
+
+### func (\*Writer) Buffered
+``` go
+func (w *Writer) Buffered() int
+```
+Buffered returns the number of buffered bytes
+in the reader.
+
+
+
+### func (\*Writer) Flush
+``` go
+func (w *Writer) Flush() error
+```
+Flush flushes any buffered bytes
+to the underlying writer.
+
+
+
+### func (\*Writer) Next
+``` go
+func (w *Writer) Next(n int) ([]byte, error)
+```
+Next returns the next 'n' free bytes
+in the write buffer, flushing the writer
+as necessary. Next will return `io.ErrShortBuffer`
+if 'n' is greater than the size of the write buffer.
+
+
+
+### func (\*Writer) ReadFrom
+``` go
+func (w *Writer) ReadFrom(r io.Reader) (int64, error)
+```
+ReadFrom implements `io.ReaderFrom`
+
+
+
+### func (\*Writer) Write
+``` go
+func (w *Writer) Write(p []byte) (int, error)
+```
+Write implements `io.Writer`
+
+
+
+### func (\*Writer) WriteByte
+``` go
+func (w *Writer) WriteByte(b byte) error
+```
+WriteByte implements `io.ByteWriter`
+
+
+
+### func (\*Writer) WriteString
+``` go
+func (w *Writer) WriteString(s string) (int, error)
+```
+WriteString is analagous to Write, but it takes a string.
 
 
 

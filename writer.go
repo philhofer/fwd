@@ -8,10 +8,10 @@ import (
 
 const (
 	// DefaultWriterSize is the
-	// default write buffer size
+	// default write buffer size.
 	DefaultWriterSize = 2048
 
-	minWriterSize = 16
+	minWriterSize = minReaderSize
 )
 
 // Writer is a buffered writer
@@ -24,6 +24,9 @@ type Writer struct {
 // that writes to 'w' and has a buffer
 // that is `DefaultWriterSize` bytes.
 func NewWriter(w io.Writer) *Writer {
+	if wr, ok := w.(*Writer); ok {
+		return wr
+	}
 	return &Writer{
 		w:   w,
 		buf: make([]byte, 0, DefaultWriterSize),
@@ -34,6 +37,9 @@ func NewWriter(w io.Writer) *Writer {
 // that writes to 'w' and has a buffer
 // that is 'size' bytes.
 func NewWriterSize(w io.Writer, size int) *Writer {
+	if wr, ok := w.(*Writer); ok && cap(wr.buf) >= size {
+		return wr
+	}
 	return &Writer{
 		w:   w,
 		buf: make([]byte, 0, max(size, minWriterSize)),
@@ -43,6 +49,9 @@ func NewWriterSize(w io.Writer, size int) *Writer {
 // Buffered returns the number of buffered bytes
 // in the reader.
 func (w *Writer) Buffered() int { return len(w.buf) }
+
+// BufferSize returns the maximum size of the buffer.
+func (w *Writer) BufferSize() int { return cap(w.buf) }
 
 // Flush flushes any buffered bytes
 // to the underlying writer.
@@ -55,20 +64,22 @@ func (w *Writer) Flush() error {
 		// thing, copy the unwritten
 		// bytes to the beginnning of the
 		// buffer.
-		if n < l {
+		if n < l && n > 0 {
 			w.pushback(n)
 			if err == nil {
 				err = io.ErrShortWrite
 			}
-		} else {
-			w.buf = w.buf[:0]
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		w.buf = w.buf[:0]
+		return nil
 	}
 	return nil
 }
 
-// Write implements io.Writer
+// Write implements `io.Writer`
 func (w *Writer) Write(p []byte) (int, error) {
 	c, l, ln := cap(w.buf), len(w.buf), len(p)
 	avail := c - l
@@ -91,13 +102,14 @@ func (w *Writer) Write(p []byte) (int, error) {
 	return copy(w.buf[l:], p), nil
 }
 
-// WriteString implements io.StringWriter
+// WriteString is analagous to Write, but it takes a string.
 func (w *Writer) WriteString(s string) (int, error) {
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
+	l := len(s)
+	dat := (*reflect.StringHeader)(unsafe.Pointer(&s)).Data
 	return w.Write(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  sh.Len,
-		Cap:  sh.Len,
-		Data: sh.Data,
+		Len:  l,
+		Cap:  l,
+		Data: dat,
 	})))
 }
 
@@ -114,7 +126,7 @@ func (w *Writer) WriteByte(b byte) error {
 
 // Next returns the next 'n' free bytes
 // in the write buffer, flushing the writer
-// as necessary. Next will return io.ErrShortBuffer
+// as necessary. Next will return `io.ErrShortBuffer`
 // if 'n' is greater than the size of the write buffer.
 func (w *Writer) Next(n int) ([]byte, error) {
 	c, l := cap(w.buf), len(w.buf)
