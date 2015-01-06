@@ -7,7 +7,7 @@
 // functionality to their counterparts in `bufio`, plus
 // a few extra utility methods that simplify read-ahead
 // and write-ahead. I wrote this package to improve serialization
-// performance [for this project](http://github.com/philhofer/msgp),
+// performance for http://github.com/philhofer/msgp,
 // where it provided about a 2x speedup over `bufio`. However,
 // care must be taken to understand the semantics of the
 // extra methods provided by this package, as they allow
