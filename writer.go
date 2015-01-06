@@ -98,19 +98,31 @@ func (w *Writer) Write(p []byte) (int, error) {
 	}
 
 	// grow buf slice; copy; return
-	w.buf = w.buf[0 : l+ln]
+	w.buf = w.buf[:l+ln]
 	return copy(w.buf[l:], p), nil
 }
 
 // WriteString is analagous to Write, but it takes a string.
 func (w *Writer) WriteString(s string) (int, error) {
-	l := len(s)
-	dat := (*reflect.StringHeader)(unsafe.Pointer(&s)).Data
-	return w.Write(*(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  l,
-		Cap:  l,
-		Data: dat,
-	})))
+	c, l, ln := cap(w.buf), len(w.buf), len(s)
+	avail := c - l
+
+	// requires flush
+	if avail < ln {
+		if err := w.Flush(); err != nil {
+			return 0, err
+		}
+		l = len(w.buf)
+	}
+	// too big to fit in buffer;
+	// write directly to w.w
+	if c < ln {
+		return w.w.Write(unsafestr(s))
+	}
+
+	// grow buf slice; copy; return
+	w.buf = w.buf[:l+ln]
+	return copy(w.buf[l:], s), nil
 }
 
 // WriteByte implements `io.ByteWriter`
@@ -140,7 +152,7 @@ func (w *Writer) Next(n int) ([]byte, error) {
 		}
 		l = len(w.buf)
 	}
-	w.buf = w.buf[0 : l+n]
+	w.buf = w.buf[:l+n]
 	return w.buf[l:], nil
 }
 
@@ -197,4 +209,13 @@ func (w *Writer) ReadFrom(r io.Reader) (int64, error) {
 	w.buf = w.buf[0:0]
 
 	return nn, nil
+}
+
+func unsafestr(b string) []byte {
+	l := len(b)
+	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
+		Len:  l,
+		Cap:  l,
+		Data: (*reflect.StringHeader)(unsafe.Pointer(&b)).Data,
+	}))
 }

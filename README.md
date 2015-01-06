@@ -4,8 +4,37 @@
 
 The `fwd` package provides a buffered reader
 and writer. Each has methods that help improve
-the encoding/decoding performance of length-prefixed
-wire formats.
+the encoding/decoding performance of some binary
+protocols.
+
+The `fwd.Writer` and `fwd.Reader` type provide similar
+functionality to their counterparts in `bufio`, plus
+a few extra utility methods that simplify read-ahead
+and write-ahead. I wrote this package to improve serialization
+performance [for this project](a href="http://github.com/philhofer/msgp">http://github.com/philhofer/msgp</a>),
+where it provided about a 2x speedup over `bufio`. However,
+care must be taken to understand the semantics of the
+extra methods provided by this package, as they allow
+the user to access and manipulate the buffer memory
+directly.
+
+The extra methods for `fwd.Reader` are `Peek`, `Skip`
+and `Next`. `(*fwd.Reader).Peek`, unlike `(*bufio.Reader).Peek`,
+will re-allocate the read buffer in order to accommodate arbitrarily
+large read-ahead. `(*fwd.Reader).Skip` skips the next `n` bytes
+in the stream, and uses the `io.Seeker` interface if the underlying
+stream implements it. `(*fwd.Reader).Next` returns a slice pointing
+to the next `n` bytes in the read buffer (like `Peek`), but also
+increments the read position. This allows users to process streams
+in aribtrary block sizes without having to manage appropriately-sized
+slices. Additionally, obviating the need to copy the data from the
+buffer to another location in memory can improve performance dramatically
+in CPU-bound applications.
+
+`fwd.Writer` only has one extra method, which is `(*fwd.Writer).Next`, which
+returns a slice pointing to the next `n` bytes of the writer, and increments
+the write position by the length of the returned slice. This allows users
+to write directly to the end of the buffer.
 
 
 
