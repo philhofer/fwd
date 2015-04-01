@@ -1,10 +1,6 @@
 package fwd
 
-import (
-	"io"
-	"reflect"
-	"unsafe"
-)
+import "io"
 
 const (
 	// DefaultWriterSize is the
@@ -116,6 +112,18 @@ func (w *Writer) WriteString(s string) (int, error) {
 	}
 	// too big to fit in buffer;
 	// write directly to w.w
+	//
+	// yes, this is unsafe. *but*
+	// io.Writer is not allowed
+	// to mutate its input or
+	// maintain a reference to it,
+	// per the spec in package io.
+	//
+	// plus, if the string is really
+	// too big to fit in the buffer, then
+	// creating a copy to write it is
+	// expensive (and, strictly speaking,
+	// unnecessary)
 	if c < ln {
 		return w.w.Write(unsafestr(s))
 	}
@@ -140,6 +148,8 @@ func (w *Writer) WriteByte(b byte) error {
 // in the write buffer, flushing the writer
 // as necessary. Next will return `io.ErrShortBuffer`
 // if 'n' is greater than the size of the write buffer.
+// Calls to 'next' increment the write position by
+// the size of the returned buffer.
 func (w *Writer) Next(n int) ([]byte, error) {
 	c, l := cap(w.buf), len(w.buf)
 	if n > c {
@@ -157,9 +167,10 @@ func (w *Writer) Next(n int) ([]byte, error) {
 }
 
 // take the bytes from w.buf[n:len(w.buf)]
-// and put them at the beginning of w.buf
+// and put them at the beginning of w.buf,
+// and resize to the length of the copied segment.
 func (w *Writer) pushback(n int) {
-	w.buf = w.buf[:copy(w.buf[0:], w.buf[n:])]
+	w.buf = w.buf[:copy(w.buf, w.buf[n:])]
 }
 
 // ReadFrom implements `io.ReaderFrom`
@@ -194,6 +205,7 @@ func (w *Writer) ReadFrom(r io.Reader) (int64, error) {
 			}
 		} else if err == nil {
 			err = io.ErrNoProgress
+			break
 		}
 	}
 	if err != io.EOF {
@@ -209,13 +221,4 @@ func (w *Writer) ReadFrom(r io.Reader) (int64, error) {
 	w.buf = w.buf[0:0]
 
 	return nn, nil
-}
-
-func unsafestr(b string) []byte {
-	l := len(b)
-	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Len:  l,
-		Cap:  l,
-		Data: (*reflect.StringHeader)(unsafe.Pointer(&b)).Data,
-	}))
 }

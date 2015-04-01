@@ -7,9 +7,9 @@
 // functionality to their counterparts in `bufio`, plus
 // a few extra utility methods that simplify read-ahead
 // and write-ahead. I wrote this package to improve serialization
-// performance for http://github.com/philhofer/msgp,
-// where it provided about a 2x speedup over `bufio`. However,
-// care must be taken to understand the semantics of the
+// performance for http://github.com/tinylib/msgp,
+// where it provided about a 2x speedup over `bufio` for certain
+// workloads. However, care must be taken to understand the semantics of the
 // extra methods provided by this package, as they allow
 // the user to access and manipulate the buffer memory
 // directly.
@@ -34,9 +34,7 @@
 //
 package fwd
 
-import (
-	"io"
-)
+import "io"
 
 const (
 	// DefaultReaderSize is the default size of the read buffer
@@ -205,17 +203,20 @@ func (r *Reader) Skip(n int) (int, error) {
 		r.n += step
 		n -= step
 	}
+	// at this point, n should be
+	// 0 if everything went smoothly
 	return o - n, r.noEOF()
 }
 
 // Next returns the next 'n' bytes in the stream.
-// If the returned slice has a length less than 'n',
-// an error will also be returned.
 // Unlike Peek, Next advances the reader position.
 // The returned bytes point to the same
 // data as the buffer, so the slice is
 // only valid until the next reader method call.
 // An EOF is considered an unexpected error.
+// If an the returned slice is less than the
+// length asked for, an error will be returned,
+// and the reader position will not be incremented.
 func (r *Reader) Next(n int) ([]byte, error) {
 
 	// in case the buffer is too small
@@ -241,21 +242,15 @@ func (r *Reader) Next(n int) ([]byte, error) {
 // skipSeek uses the io.Seeker to seek forward.
 // only call this function when n > r.buffered()
 func (r *Reader) skipSeek(n int) (int, error) {
-	o := n
+	o := r.buffered()
 	// first, clear buffer
-	n -= r.buffered()
+	n -= o
 	r.n = 0
 	r.data = r.data[:0]
-	_, err := r.rs.Seek(int64(n), 1)
 
-	// the best assumption
-	// we can make here is
-	// that we either skipped
-	// everything or nothing...
-	if err != nil {
-		return 0, err
-	}
-	return o, nil
+	// then seek forward remaning bytes
+	i, err := r.rs.Seek(int64(n), 1)
+	return int(i) + o, err
 }
 
 // Read implements `io.Reader`
@@ -280,6 +275,7 @@ func (r *Reader) Read(b []byte) (int, error) {
 // ReadFull attempts to read len(b) bytes into
 // 'b'. It returns the number of bytes read into
 // 'b', and an error if it does not return len(b).
+// EOF is considered an unexpected error.
 func (r *Reader) ReadFull(b []byte) (int, error) {
 	var x int
 	l := len(b)
