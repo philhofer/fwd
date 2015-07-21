@@ -148,6 +148,7 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 		old := r.data[r.n:]
 		r.data = make([]byte, n+r.buffered())
 		r.data = r.data[:copy(r.data, old)]
+		r.n = 0
 	}
 
 	// keep filling until
