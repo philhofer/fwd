@@ -78,6 +78,33 @@ func TestRead(t *testing.T) {
 	if !bytes.Equal(bts, all) {
 		t.Errorf("bytes not equal; %d bytes in and %d bytes out", len(bts), len(out))
 	}
+
+	// test filling out of the underlying reader
+	big := randomBts(1 << 21)
+	rd = NewReaderSize(partialReader{bytes.NewReader(big)}, 2048)
+	buf := make([]byte, 3100)
+
+	n, err = rd.ReadFull(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 3100 {
+		t.Errorf("expected 3100 bytes read by ReadFull; got %d", n)
+	}
+	if !bytes.Equal(buf[:n], big[:n]) {
+		t.Error("data parity")
+	}
+	rest := make([]byte, (1<<21)-3100)
+	n, err = io.ReadFull(rd, rest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != len(rest) {
+		t.Errorf("expected %d bytes read by io.ReadFull; got %d", len(rest), n)
+	}
+	if !bytes.Equal(append(buf, rest...), big) {
+		t.Fatal("data parity")
+	}
 }
 
 func TestReadByte(t *testing.T) {
@@ -305,6 +332,12 @@ func TestReadFull(t *testing.T) {
 	}
 	if !bytes.Equal(bts, out) {
 		t.Fatal("bytes not equal")
+	}
+
+	// we've read everything; this should EOF
+	n, err = rd.Read(out)
+	if err != io.EOF {
+		t.Fatalf("expected %q; got %q", io.EOF, err)
 	}
 
 	rd.Reset(partialReader{bytes.NewReader(bts)})
