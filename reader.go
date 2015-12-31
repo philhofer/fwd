@@ -168,7 +168,7 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 
 // Skip moves the reader forward 'n' bytes.
 // Returns the number of bytes skipped and any
-// errors encountered. It is analagous to Seek(n, 1).
+// errors encountered. It is analogous to Seek(n, 1).
 // If the underlying reader implements io.Seeker, then
 // that method will be used to skip forward.
 //
