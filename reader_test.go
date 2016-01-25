@@ -352,3 +352,47 @@ func TestReadFull(t *testing.T) {
 		t.Fatalf("expected to read %d bytes; read %d", 1024, n)
 	}
 }
+
+type readCounter struct {
+	r     io.Reader
+	count int
+}
+
+func (r *readCounter) Read(p []byte) (int, error) {
+	r.count++
+	return r.r.Read(p)
+}
+
+func TestReadFullPerf(t *testing.T) {
+	const size = 1 << 22
+	data := randomBts(size)
+
+	c := readCounter{
+		r: &partialReader{
+			r: bytes.NewReader(data),
+		},
+	}
+
+	r := NewReader(&c)
+
+	const segments = 4
+	out := make([]byte, size/segments)
+
+	for i := 0; i < segments; i++ {
+		// force an unaligned read
+		_, err := r.Peek(5)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		n, err := r.ReadFull(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != size/segments {
+			t.Fatalf("read %d bytes, not %d", n, size/segments)
+		}
+	}
+
+	t.Logf("called Read() on the underlying reader %d times to fill %d buffers", c.count, size/r.BufferSize())
+}

@@ -97,7 +97,11 @@ func (r *Reader) more() {
 	// we can supply the maximum number of
 	// bytes to the reader
 	if r.n != 0 {
-		r.data = r.data[:copy(r.data[0:], r.data[r.n:])]
+		if r.n < len(r.data) {
+			r.data = r.data[:copy(r.data[0:], r.data[r.n:])]
+		} else {
+			r.data = r.data[:0]
+		}
 		r.n = 0
 	}
 	var a int
