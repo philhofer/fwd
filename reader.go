@@ -34,7 +34,10 @@
 //
 package fwd
 
-import "io"
+import (
+	"io"
+	"os"
+)
 
 const (
 	// DefaultReaderSize is the default size of the read buffer
@@ -56,10 +59,31 @@ func NewReaderSize(r io.Reader, n int) *Reader {
 		r:    r,
 		data: make([]byte, 0, max(minReaderSize, n)),
 	}
-	if s, ok := r.(io.Seeker); ok {
-		rd.rs = s
-	}
+	rd.rs = getValidSeeker(r)
 	return rd
+}
+
+// getValidSeeker will see if the provided reader implements io.Seeker, but also make sure
+// it looks like it will actually work. For instance, seeking on /dev/stdin is unlikely to
+// work.
+func getValidSeeker(r io.Reader) io.Seeker {
+	if s, ok := r.(io.Seeker); ok {
+		// If it's a file (such as os.Stdin)
+		if f, ok := r.(*os.File); ok {
+			// Check if it's a regular file (not, for example, a pipe)
+			if st, err := f.Stat(); err == nil {
+				// Assume seeking works only on normal files
+				if st.Mode().IsRegular() {
+					return s
+				}
+			}
+			// Stat failed? Assume non-seeker.
+			return nil
+		}
+		// Not a file? Trust the io.Seeker will work as intended.
+		return s
+	}
+	return nil
 }
 
 // Reader is a buffered look-ahead reader
