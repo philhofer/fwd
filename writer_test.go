@@ -235,5 +235,29 @@ func TestReadFrom(t *testing.T) {
 	if !bytes.Equal(buf.Bytes(), bts) {
 		t.Fatal("buf.Bytes() and input are not equal")
 	}
+}
 
+func TestWriterBufCreation(t *testing.T) {
+	tests := []struct {
+		name   string
+		buffer []byte
+		size   int
+	}{
+		{name: "nil", buffer: nil, size: minWriterSize},
+		{name: "empty", buffer: []byte{}, size: minWriterSize},
+		{name: "allocated", buffer: make([]byte, 0, 200), size: 200},
+		{name: "filled", buffer: make([]byte, 200), size: 200},
+	}
+
+	for _, test := range tests {
+		var b bytes.Buffer
+		w := NewWriterBuf(&b, test.buffer)
+
+		if w.BufferSize() != test.size {
+			t.Errorf("%s: unequal buffer size (got: %d, expected: %d)", test.name, w.BufferSize(), test.size)
+		}
+		if w.Buffered() != 0 {
+			t.Errorf("%s: unequal buffered bytes (got: %d, expected: 0)", test.name, w.Buffered())
+		}
+	}
 }
