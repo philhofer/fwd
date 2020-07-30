@@ -396,3 +396,28 @@ func TestReadFullPerf(t *testing.T) {
 
 	t.Logf("called Read() on the underlying reader %d times to fill %d buffers", c.count, size/r.BufferSize())
 }
+
+func TestReaderBufCreation(t *testing.T) {
+	tests := []struct {
+		name   string
+		buffer []byte
+		size   int
+	}{
+		{name: "nil", buffer: nil, size: minReaderSize},
+		{name: "empty", buffer: []byte{}, size: minReaderSize},
+		{name: "allocated", buffer: make([]byte, 0, 200), size: 200},
+		{name: "filled", buffer: make([]byte, 200), size: 200},
+	}
+
+	for _, test := range tests {
+		var b bytes.Buffer
+		r := NewReaderBuf(&b, test.buffer)
+
+		if r.BufferSize() != test.size {
+			t.Errorf("%s: unequal buffer size (got: %d, expected: %d)", test.name, r.BufferSize(), test.size)
+		}
+		if r.Buffered() != 0 {
+			t.Errorf("%s: unequal buffered bytes (got: %d, expected: 0)", test.name, r.Buffered())
+		}
+	}
+}
