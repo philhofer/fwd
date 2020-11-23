@@ -218,7 +218,9 @@ func (r *Reader) Skip(n int) (int, error) {
 	// and then erasing
 	o := n
 	for r.buffered() < n && r.state == nil {
-		r.more()
+		if r.buffered() == 0 {
+			r.more()
+		}
 		// we can skip forward
 		// up to r.buffered() bytes
 		step := min(r.buffered(), n)
