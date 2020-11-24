@@ -133,6 +133,10 @@ func TestReadByte(t *testing.T) {
 	}
 }
 
+func remaining(r *Reader) int {
+	return r.Buffered() + r.r.(partialReader).r.(*bytes.Reader).Len()
+}
+
 func TestSkipNoSeek(t *testing.T) {
 	bts := randomBts(1024)
 	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
@@ -145,6 +149,10 @@ func TestSkipNoSeek(t *testing.T) {
 		t.Fatalf("Skip() returned a nil error, but skipped %d bytes instead of %d", n, 512)
 	}
 
+	if remaining(rd) != 512 {
+		t.Errorf("expected 512 remaining; got %d", remaining(rd))
+	}
+
 	var b byte
 	b, err = rd.ReadByte()
 	if err != nil {
@@ -152,7 +160,7 @@ func TestSkipNoSeek(t *testing.T) {
 	}
 
 	if b != bts[512] {
-		t.Fatalf("at index %d: %d in; %d out", 512, bts[512], b)
+		t.Errorf("at index %d: %d in; %d out", 512, bts[512], b)
 	}
 
 	n, err = rd.Skip(10)
@@ -162,16 +170,38 @@ func TestSkipNoSeek(t *testing.T) {
 	if n != 10 {
 		t.Fatalf("Skip() returned a nil error, but skipped %d bytes instead of %d", n, 10)
 	}
+	// the number of bytes remaining in the buffer needs
+	// to comport with the number of bytes we expect to have skipped
+	if want := 1024 - 512 - 10 - 1; remaining(rd) != want {
+		t.Errorf("only %d bytes remaining (want %d)?", remaining(rd), want)
+	}
+	n, err = rd.Skip(10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 10 {
+		t.Fatalf("Skip(10) a second time returned %d", n)
+	}
+	if want := 1024 - 512 - 10 - 10 - 1; remaining(rd) != want {
+		t.Errorf("only %d bytes remaining (want %d)?", remaining(rd), want)
+	}
+	b, err = rd.ReadByte()
+	if err != nil {
+		t.Fatalf("second ReadByte(): %s", err)
+	}
+	if b != bts[512+10+10+1] {
+		t.Errorf("expected %d but got %d", bts[512+10+10], b)
+	}
 
-	// now try to skip past the end
-	rd = NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
-
+	// now try to skip past the end; we expect
+	// only to skip the number of bytes remaining
+	want := remaining(rd)
 	n, err = rd.Skip(2000)
 	if err != io.ErrUnexpectedEOF {
 		t.Fatalf("expected error %q; got %q", io.EOF, err)
 	}
-	if n != 1024 {
-		t.Fatalf("expected to skip only 1024 bytes; skipped %d", n)
+	if n != want {
+		t.Fatalf("expected to skip only %d bytes; skipped %d", want, n)
 	}
 }
 
