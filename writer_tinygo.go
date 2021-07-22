@@ -1,4 +1,4 @@
-// +build !appengine,!tinygo
+// +build tinygo
 
 package fwd
 
@@ -9,7 +9,7 @@ import (
 
 // unsafe cast string as []byte
 func unsafestr(b string) []byte {
-	l := len(b)
+	l := uintptr(len(b))
 	return *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
 		Len:  l,
 		Cap:  l,
