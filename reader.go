@@ -31,7 +31,6 @@
 // returns a slice pointing to the next `n` bytes of the writer, and increments
 // the write position by the length of the returned slice. This allows users
 // to write directly to the end of the buffer.
-//
 package fwd
 
 import (
@@ -250,7 +249,6 @@ func (r *Reader) Skip(n int) (int, error) {
 // length asked for, an error will be returned,
 // and the reader position will not be incremented.
 func (r *Reader) Next(n int) ([]byte, error) {
-
 	// in case the buffer is too small
 	if cap(r.data) < n {
 		old := r.data[r.n:]
