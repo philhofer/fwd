@@ -1,3 +1,4 @@
+//go:build !appengine && !tinygo
 // +build !appengine,!tinygo
 
 package fwd

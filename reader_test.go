@@ -260,7 +260,6 @@ func TestSkipSeek(t *testing.T) {
 	if n != 0 {
 		t.Errorf("expected 0 bytes read; got %d", n)
 	}
-
 }
 
 func TestPeek(t *testing.T) {
