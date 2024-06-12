@@ -424,7 +424,7 @@ func TestInputOffset(t *testing.T) {
 
 	n, _ := rd.Read(make([]byte, 128))
 
-	if rd.InputOffset() != 385+n {
+	if rd.InputOffset() != int64(385+n) {
 		t.Errorf("expected offset %d; got %d", 385+n, rd.InputOffset())
 	}
 
@@ -439,6 +439,25 @@ func TestInputOffset(t *testing.T) {
 	if err != io.EOF {
 		t.Fatalf("expected error %q; got %q", io.EOF, err)
 	}
+
+	if rd.InputOffset() != 1024 {
+		t.Errorf("expected offset 1024; got %d", rd.InputOffset())
+	}
+
+	// reset the reader
+	rd.Reset(bytes.NewReader(bts))
+
+	if rd.InputOffset() != 0 {
+		t.Errorf("expected offset 0; got %d", rd.InputOffset())
+	}
+
+	rd.Skip(768 + 32)
+
+	if rd.InputOffset() != 800 {
+		t.Errorf("expected offset 800; got %d", rd.InputOffset())
+	}
+
+	rd.WriteTo(ioutil.Discard)
 
 	if rd.InputOffset() != 1024 {
 		t.Errorf("expected offset 1024; got %d", rd.InputOffset())
