@@ -82,9 +82,10 @@ type Reader struct {
 	r io.Reader // underlying reader
 
 	// data[n:len(data)] is buffered data; data[len(data):cap(data)] is free buffer space
-	data  []byte // data
-	n     int    // read offset
-	state error  // last read error
+	data        []byte // data
+	n           int    // read offset
+	inputOffset int64  // offset in the input stream
+	state       error  // last read error
 
 	// if the reader past to NewReader was
 	// also an io.Seeker, this is non-nil
@@ -97,6 +98,7 @@ func (r *Reader) Reset(rd io.Reader) {
 	r.r = rd
 	r.data = r.data[0:0]
 	r.n = 0
+	r.inputOffset = 0
 	r.state = nil
 	if s, ok := rd.(io.Seeker); ok {
 		r.rs = s
@@ -158,6 +160,9 @@ func (r *Reader) Buffered() int { return len(r.data) - r.n }
 // BufferSize returns the total size of the buffer
 func (r *Reader) BufferSize() int { return cap(r.data) }
 
+// InputOffset returns the input stream byte offset of the current reader position
+func (r *Reader) InputOffset() int64 { return r.inputOffset }
+
 // Peek returns the next 'n' buffered bytes,
 // reading from the underlying reader if necessary.
 // It will only return a slice shorter than 'n' bytes
@@ -197,10 +202,12 @@ func (r *Reader) discard(n int) int {
 	inbuf := r.buffered()
 	if inbuf <= n {
 		r.n = 0
+		r.inputOffset += int64(inbuf)
 		r.data = r.data[:0]
 		return inbuf
 	}
 	r.n += n
+	r.inputOffset += int64(n)
 	return n
 }
 
@@ -228,6 +235,7 @@ func (r *Reader) Skip(n int) (int, error) {
 	// if we can Seek() through the remaining bytes, do that
 	if n > skipped && r.rs != nil {
 		nn, err := r.rs.Seek(int64(n-skipped), 1)
+		r.inputOffset += nn
 		return int(nn) + skipped, err
 	}
 	// otherwise, keep filling the buffer
@@ -267,6 +275,7 @@ func (r *Reader) Next(n int) ([]byte, error) {
 	}
 	out := r.data[r.n : r.n+n]
 	r.n += n
+	r.inputOffset += int64(n)
 	return out, nil
 }
 
@@ -277,6 +286,7 @@ func (r *Reader) Read(b []byte) (int, error) {
 	if r.buffered() != 0 {
 		x := copy(b, r.data[r.n:])
 		r.n += x
+		r.inputOffset += int64(x)
 		return x, nil
 	}
 	var n int
@@ -293,6 +303,9 @@ func (r *Reader) Read(b []byte) (int, error) {
 	if n == 0 {
 		return 0, r.err()
 	}
+
+	r.inputOffset += int64(n)
+
 	return n, nil
 }
 
@@ -312,9 +325,11 @@ func (r *Reader) ReadFull(b []byte) (int, error) {
 			nn = copy(b[n:], r.data[r.n:])
 			n += nn
 			r.n += nn
+			r.inputOffset += int64(nn)
 		} else if l-n > cap(r.data) {
 			nn, r.state = r.r.Read(b[n:])
 			n += nn
+			r.inputOffset += int64(nn)
 		} else {
 			r.more()
 		}
@@ -335,6 +350,8 @@ func (r *Reader) ReadByte() (byte, error) {
 	}
 	b := r.data[r.n]
 	r.n++
+	r.inputOffset++
+
 	return b, nil
 }
 
@@ -354,6 +371,7 @@ func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 		}
 		r.data = r.data[0:0]
 		r.n = 0
+		r.inputOffset += int64(ii)
 	}
 	for r.state == nil {
 		// here we just do
@@ -367,6 +385,7 @@ func (r *Reader) WriteTo(w io.Writer) (int64, error) {
 			}
 			r.data = r.data[0:0]
 			r.n = 0
+			r.inputOffset += int64(ii)
 		}
 	}
 	if r.state != io.EOF {

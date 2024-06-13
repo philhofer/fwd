@@ -382,6 +382,88 @@ func TestReadFull(t *testing.T) {
 	}
 }
 
+func TestInputOffset(t *testing.T) {
+	bts := randomBts(1024)
+	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 128)
+
+	if rd.InputOffset() != 0 {
+		t.Errorf("expected offset 0; got %d", rd.InputOffset())
+	}
+
+	// read a few bytes
+	rd.ReadFull(make([]byte, 10))
+
+	if rd.InputOffset() != 10 {
+		t.Errorf("expected offset 10; got %d", rd.InputOffset())
+	}
+
+	rd.Peek(384)
+
+	// peeking doesn't advance the offset
+	if rd.InputOffset() != 10 {
+		t.Errorf("expected offset 10; got %d", rd.InputOffset())
+	}
+
+	rd.Next(246)
+
+	if rd.InputOffset() != 256 {
+		t.Errorf("expected offset 256; got %d", rd.InputOffset())
+	}
+
+	rd.Skip(128)
+
+	if rd.InputOffset() != 384 {
+		t.Errorf("expected offset 384; got %d", rd.InputOffset())
+	}
+
+	rd.ReadByte()
+
+	if rd.InputOffset() != 385 {
+		t.Errorf("expected offset 385; got %d", rd.InputOffset())
+	}
+
+	n, _ := rd.Read(make([]byte, 128))
+
+	if rd.InputOffset() != int64(385+n) {
+		t.Errorf("expected offset %d; got %d", 385+n, rd.InputOffset())
+	}
+
+	rd.WriteTo(ioutil.Discard)
+
+	if rd.InputOffset() != 1024 {
+		t.Errorf("expected offset 1024; got %d", rd.InputOffset())
+	}
+
+	// try to read more
+	_, err := rd.Read(make([]byte, 32))
+	if err != io.EOF {
+		t.Fatalf("expected error %q; got %q", io.EOF, err)
+	}
+
+	if rd.InputOffset() != 1024 {
+		t.Errorf("expected offset 1024; got %d", rd.InputOffset())
+	}
+
+	// reset the reader
+	rd.Reset(bytes.NewReader(bts))
+
+	if rd.InputOffset() != 0 {
+		t.Errorf("expected offset 0; got %d", rd.InputOffset())
+	}
+
+	rd.Skip(768 + 32)
+
+	if rd.InputOffset() != 800 {
+		t.Errorf("expected offset 800; got %d", rd.InputOffset())
+	}
+
+	rd.WriteTo(ioutil.Discard)
+
+	if rd.InputOffset() != 1024 {
+		t.Errorf("expected offset 1024; got %d", rd.InputOffset())
+	}
+}
+
 type readCounter struct {
 	r     io.Reader
 	count int
