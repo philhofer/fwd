@@ -196,6 +196,38 @@ func (r *Reader) Peek(n int) ([]byte, error) {
 	return r.data[r.n : r.n+n], nil
 }
 
+func (r *Reader) PeekByte() (b byte, err error) {
+	if len(r.data)-r.n >= 1 {
+		b = r.data[r.n]
+	} else {
+		b, err = r.peekByte()
+	}
+	return
+}
+
+func (r *Reader) peekByte() (byte, error) {
+	const n = 1
+	if cap(r.data) < n {
+		old := r.data[r.n:]
+		r.data = make([]byte, n+r.buffered())
+		r.data = r.data[:copy(r.data, old)]
+		r.n = 0
+	}
+
+	// keep filling until
+	// we hit an error or
+	// read enough bytes
+	for r.buffered() < n && r.state == nil {
+		r.more()
+	}
+
+	// we must have hit an error
+	if r.buffered() < n {
+		return 0, r.err()
+	}
+	return r.data[r.n], nil
+}
+
 // discard(n) discards up to 'n' buffered bytes, and
 // and returns the number of bytes discarded
 func (r *Reader) discard(n int) int {
@@ -256,7 +288,18 @@ func (r *Reader) Skip(n int) (int, error) {
 // If an the returned slice is less than the
 // length asked for, an error will be returned,
 // and the reader position will not be incremented.
-func (r *Reader) Next(n int) ([]byte, error) {
+func (r *Reader) Next(n int) (b []byte, err error) {
+	if r.state == nil && len(r.data)-r.n >= n {
+		b = r.data[r.n : r.n+n]
+		r.n += n
+		r.inputOffset += int64(n)
+	} else {
+		b, err = r.next(n)
+	}
+	return
+}
+
+func (r *Reader) next(n int) ([]byte, error) {
 	// in case the buffer is too small
 	if cap(r.data) < n {
 		old := r.data[r.n:]
