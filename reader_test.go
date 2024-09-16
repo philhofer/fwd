@@ -304,6 +304,35 @@ func TestPeek(t *testing.T) {
 	}
 }
 
+func TestPeekByte(t *testing.T) {
+	bts := randomBts(1024)
+	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
+
+	// first, a peek < buffer size
+	var (
+		peek byte
+		err  error
+	)
+	rd.Skip(100)
+	peek, err = rd.PeekByte()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if peek != bts[100] {
+		t.Fatalf("peeked byte not equal: want %d got %d", bts[100], peek)
+	}
+
+	// now, a peek > buffer size
+	rd.Skip(156)
+	peek, err = rd.PeekByte()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if peek != bts[256] {
+		t.Fatalf("peeked byte not equal: want %d got %d", bts[256], peek)
+	}
+}
+
 func TestNext(t *testing.T) {
 	size := 1024
 	bts := randomBts(size)
