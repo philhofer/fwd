@@ -262,6 +262,72 @@ func TestSkipSeek(t *testing.T) {
 	}
 }
 
+func TestSkipSeekInputOffset(t *testing.T) {
+	bts := randomBts(1024)
+
+	// bytes.Reader implements io.Seeker
+	rd := NewReaderSize(bytes.NewReader(bts), 200)
+
+	// read some bytes to advance the underlying stream position
+	buf := make([]byte, 50)
+	n, err := rd.ReadFull(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 50 {
+		t.Fatalf("ReadFull: expected 50, got %d", n)
+	}
+	if rd.InputOffset() != 50 {
+		t.Fatalf("expected offset 50 after ReadFull; got %d", rd.InputOffset())
+	}
+
+	// skip more than what's buffered to force a Seek on the underlying reader;
+	// the buffer is 200 bytes and we consumed 50, so 150 are buffered —
+	// skipping 300 discards those 150 and seeks 150 more
+	n, err = rd.Skip(300)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 300 {
+		t.Fatalf("Skip() returned %d, want 300", n)
+	}
+	if rd.InputOffset() != 350 {
+		t.Fatalf("expected offset 350 after Skip; got %d", rd.InputOffset())
+	}
+
+	// verify we're at the right position in the stream
+	b, err := rd.ReadByte()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b != bts[350] {
+		t.Fatalf("at index 350: expected %d, got %d", bts[350], b)
+	}
+	if rd.InputOffset() != 351 {
+		t.Fatalf("expected offset 351 after ReadByte; got %d", rd.InputOffset())
+	}
+
+	// skip again to make sure repeated skips work correctly
+	n, err = rd.Skip(100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 100 {
+		t.Fatalf("second Skip() returned %d, want 100", n)
+	}
+	if rd.InputOffset() != 451 {
+		t.Fatalf("expected offset 451 after second Skip; got %d", rd.InputOffset())
+	}
+
+	b, err = rd.ReadByte()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b != bts[451] {
+		t.Fatalf("at index 451: expected %d, got %d", bts[451], b)
+	}
+}
+
 func TestPeek(t *testing.T) {
 	bts := randomBts(1024)
 	rd := NewReaderSize(partialReader{bytes.NewReader(bts)}, 200)
