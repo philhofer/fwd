@@ -266,9 +266,11 @@ func (r *Reader) Skip(n int) (int, error) {
 
 	// if we can Seek() through the remaining bytes, do that
 	if n > skipped && r.rs != nil {
-		nn, err := r.rs.Seek(int64(n-skipped), 1)
-		r.inputOffset += nn
-		return int(nn) + skipped, err
+		if _, err := r.rs.Seek(int64(n-skipped), io.SeekCurrent); err != nil {
+			return skipped, err
+		}
+		r.inputOffset += int64(n - skipped)
+		return n, nil
 	}
 	// otherwise, keep filling the buffer
 	// and discarding it up to 'n'
