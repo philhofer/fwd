@@ -561,3 +561,52 @@ func TestReaderBufCreation(t *testing.T) {
 		}
 	}
 }
+
+// bytesWithError returns its bytes and a non-EOF error once, then io.EOF.
+type bytesWithError struct {
+	b   []byte
+	err error
+	did bool
+}
+
+func (r *bytesWithError) Read(p []byte) (int, error) {
+	if r.did {
+		return 0, io.EOF
+	}
+	r.did = true
+	return copy(p, r.b), r.err
+}
+
+func TestReadKeepsBytesReturnedWithError(t *testing.T) {
+	want := []byte{1, 2, 3, 4}
+
+	rd := NewReaderSize(&bytesWithError{b: want, err: io.ErrClosedPipe}, 32)
+	got, err := rd.Next(len(want))
+	if err != nil {
+		t.Fatalf("Next: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("Next got %x, want %x", got, want)
+	}
+	if _, err = rd.Next(1); err != io.ErrClosedPipe {
+		t.Fatalf("Next after bytes: got %v, want %v", err, io.ErrClosedPipe)
+	}
+
+	rd = NewReaderSize(&bytesWithError{b: want, err: io.ErrClosedPipe}, 32)
+	buf := make([]byte, len(want))
+	n, err := rd.Read(buf)
+	if err != nil || n != len(want) || !bytes.Equal(buf[:n], want) {
+		t.Fatalf("Read: n=%d err=%v buf=%x", n, err, buf[:n])
+	}
+	n, err = rd.Read(buf)
+	if n != 0 || err != io.ErrClosedPipe {
+		t.Fatalf("Read after bytes: n=%d err=%v, want 0, %v", n, err, io.ErrClosedPipe)
+	}
+
+	rd = NewReaderSize(&bytesWithError{b: want, err: io.ErrClosedPipe}, 32)
+	out := make([]byte, 8)
+	n, err = rd.ReadFull(out)
+	if n != len(want) || err != io.ErrClosedPipe || !bytes.Equal(out[:n], want) {
+		t.Fatalf("ReadFull: n=%d err=%v out=%x", n, err, out[:n])
+	}
+}
