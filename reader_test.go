@@ -237,6 +237,10 @@ func TestSkipSeek(t *testing.T) {
 		t.Fatalf("Skip() returned a nil error, but skipped %d bytes instead of %d", n, 10)
 	}
 
+	if rd.InputOffset() != 512+1+10 {
+		t.Errorf("input offset = %d", rd.InputOffset())
+	}
+
 	// now try to skip past the end
 	rd.Reset(bytes.NewReader(bts))
 
@@ -249,6 +253,10 @@ func TestSkipSeek(t *testing.T) {
 	}
 	if n != 2000 {
 		t.Fatalf("should have returned %d bytes; returned %d", 2000, n)
+	}
+
+	if rd.InputOffset() != 2000 {
+		t.Fatalf("input offset: %d", rd.InputOffset())
 	}
 
 	// the next call to Read()
