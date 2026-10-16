@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"os"
 	"testing"
 	"unsafe"
 )
@@ -616,5 +617,27 @@ func TestReadKeepsBytesReturnedWithError(t *testing.T) {
 	n, err = rd.ReadFull(out)
 	if n != len(want) || err != io.ErrClosedPipe || !bytes.Equal(out[:n], want) {
 		t.Fatalf("ReadFull: n=%d err=%v out=%x", n, err, out[:n])
+	}
+}
+
+func TestPipeSeek(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	body := "hello, world!\n"
+	fr := NewReader(r)
+	go func() {
+		defer w.Close()
+		io.WriteString(w, body)
+	}()
+
+	n, err := fr.Skip(len(body))
+	if err != nil {
+		t.Fatalf("Skip: %s", err)
+	}
+	if n != len(body) {
+		t.Fatalf("skipped %d instead of %d bytes?", n, len(body))
 	}
 }

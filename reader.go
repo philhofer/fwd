@@ -34,8 +34,10 @@
 package fwd
 
 import (
+	"errors"
 	"io"
 	"os"
+	"syscall"
 )
 
 const (
@@ -274,7 +276,13 @@ func (r *Reader) Skip(n int) (int, error) {
 			r.inputOffset = offs
 			return n, nil
 		}
-		return skipped, err
+		// if the io.Seeker is not actually usable,
+		// just swallow the error and don't try
+		// seeking again
+		if !errors.Is(err, syscall.ESPIPE) {
+			return skipped, err
+		}
+		r.rs = nil
 	}
 	// otherwise, keep filling the buffer
 	// and discarding it up to 'n'
