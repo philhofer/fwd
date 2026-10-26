@@ -192,28 +192,28 @@ func (w *Writer) ReadFrom(r io.Reader) (int64, error) {
 		return 0, err
 	}
 
-	w.buf = w.buf[0:cap(w.buf)] // expand buffer
-
 	var nn int64  // written
 	var err error // error
 	var x int     // read
 
 	// 1:1 reads and writes
 	for err == nil {
-		x, err = r.Read(w.buf)
+		x, err = r.Read(w.buf[:cap(w.buf)])
+		w.buf = w.buf[:x]
 		if x > 0 {
-			n, werr := w.w.Write(w.buf[:x])
+			n, werr := w.w.Write(w.buf)
 			nn += int64(n)
 
-			if err != nil {
-				if n < x && n > 0 {
-					w.pushback(n - x)
-				}
-				return nn, werr
-			}
 			if n < x {
-				w.pushback(n - x)
-				return nn, io.ErrShortWrite
+				w.pushback(n)
+				if werr == nil {
+					werr = io.ErrShortWrite
+				}
+			} else {
+				w.buf = w.buf[:0]
+			}
+			if werr != nil {
+				return nn, werr
 			}
 		} else if err == nil {
 			err = io.ErrNoProgress
@@ -223,14 +223,6 @@ func (w *Writer) ReadFrom(r io.Reader) (int64, error) {
 	if err != io.EOF {
 		return nn, err
 	}
-
-	// we only clear here
-	// because we are sure
-	// the writes have
-	// succeeded. otherwise,
-	// we retain the data in case
-	// future writes succeed.
-	w.buf = w.buf[0:0]
 
 	return nn, nil
 }
