@@ -425,41 +425,34 @@ func (r *Reader) ReadByte() (byte, error) {
 
 // WriteTo implements [io.WriterTo].
 func (r *Reader) WriteTo(w io.Writer) (int64, error) {
-	var (
-		i   int64
-		ii  int
-		err error
-	)
-	// first, clear buffer
-	if r.buffered() > 0 {
-		ii, err = w.Write(r.data[r.n:])
-		i += int64(ii)
-		if err != nil {
-			return i, err
-		}
-		r.data = r.data[0:0]
-		r.n = 0
-		r.inputOffset += int64(ii)
-	}
-	for r.state == nil {
-		// here we just do
-		// 1:1 reads and writes
-		r.more()
+	var written int64
+	for {
 		if r.buffered() > 0 {
-			ii, err = w.Write(r.data)
-			i += int64(ii)
-			if err != nil {
-				return i, err
+			pending := r.buffered()
+			n, err := w.Write(r.data[r.n:])
+			written += int64(n)
+			r.n += n
+			r.inputOffset += int64(n)
+			if n < pending && err == nil {
+				err = io.ErrShortWrite
 			}
-			r.data = r.data[0:0]
-			r.n = 0
-			r.inputOffset += int64(ii)
+			if r.n == len(r.data) {
+				r.data = r.data[:0]
+				r.n = 0
+			}
+			if err != nil {
+				return written, err
+			}
 		}
+		if r.state != nil {
+			break
+		}
+		r.more()
 	}
 	if r.state != io.EOF {
-		return i, r.err()
+		return written, r.err()
 	}
-	return i, nil
+	return written, nil
 }
 
 func max(a int, b int) int {
